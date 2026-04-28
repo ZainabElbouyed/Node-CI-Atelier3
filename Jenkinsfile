@@ -48,9 +48,6 @@ pipeline {
                 echo '📦 Récupération depuis GitHub...'
                 git url: 'https://github.com/ZainabElbouyed/Node-CI-Atelier3.git',
                     branch: 'master'
-                
-                bat 'dir'
-                bat 'type package.json'
             }
         }
         
@@ -62,10 +59,6 @@ pipeline {
             }
             post {
                 success { echo '✅ Dépendances installées' }
-                failure { 
-                    echo '❌ Échec installation'
-                    bat 'dir'
-                }
             }
         }
         
@@ -76,14 +69,13 @@ pipeline {
                 echo "PORT: ${env.PORT}"
                 
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    // Utiliser npx pour exécuter mocha local
-                    bat 'npx mocha --exit tests/* || echo "Tests en cours"'
+                    // Exécuter les tests avec génération du rapport JUnit
+                    bat 'npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=junit.xml || npx mocha --exit tests/*'
                 }
             }
             post {
                 always {
-                    junit testResults: 'test-results.xml', 
-                           allowEmptyResults: true
+                    // Publication du rapport JUnit
                     junit testResults: 'junit.xml', 
                            allowEmptyResults: true
                 }
@@ -95,16 +87,12 @@ pipeline {
         
         stage('JUnit Reports') {
             steps {
-                echo '📊 Génération du rapport de tests...'
-                // Installer le reporter JUnit pour Mocha
-                bat 'npm install --save-dev mocha-junit-reporter || echo "Déjà installé"'
-                // Exécuter les tests avec génération de rapport
-                bat 'npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=junit.xml || echo "Rapport non généré"'
+                echo '📊 Publication des rapports de tests...'
             }
             post {
                 always {
-                    junit testResults: 'junit.xml', 
-                           allowEmptyResults: true
+                    // S'assurer que le dossier reports existe
+                    bat 'if not exist reports mkdir reports'
                     
                     publishHTML([
                         reportDir: 'reports',
@@ -127,13 +115,8 @@ pipeline {
                     Write-Host "=== DÉPLOIEMENT ==="
                     
                     # Arrêt de l'ancienne application
-                    Write-Host "Arrêt de l'ancienne application..."
-                    pm2 stop demo 2>$null
-                    pm2 delete demo 2>$null
-                    
-                    # Installation de PM2 globalement
-                    Write-Host "Installation de PM2..."
-                    npm install -g pm2
+                    try { pm2 stop demo 2>$null } catch { }
+                    try { pm2 delete demo 2>$null } catch { }
                     
                     # Installation des dépendances de production
                     Write-Host "Installation des dépendances..."
@@ -141,21 +124,17 @@ pipeline {
                     
                     # Démarrage avec PM2
                     Write-Host "Démarrage de l'application..."
-                    pm2 start server.js --name demo --env production
+                    pm2 start server.js --name demo
                     pm2 save
                     
-                    # Attente du démarrage
                     Start-Sleep -Seconds 5
                     
-                    # Vérification
                     try {
                         $response = Invoke-WebRequest -Uri "http://localhost:3000" -UseBasicParsing -TimeoutSec 5
                         Write-Host "✅ Application démarrée sur le port 3000"
                         Write-Host "✅ Status: $($response.StatusCode)"
                     } catch {
                         Write-Host "⚠️ Application non encore accessible"
-                        Write-Host "Logs PM2:"
-                        pm2 logs demo --lines 10 --nostream
                     }
                 '''
             }
@@ -178,18 +157,11 @@ pipeline {
                         Write-Host "=== SMOKE TEST ==="
                         Start-Sleep -Seconds 3
                         
-                        $urls = @(
-                            "http://localhost:3000/",
-                            "http://localhost:3000/health"
-                        )
-                        
-                        foreach ($url in $urls) {
-                            try {
-                                $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
-                                Write-Host "✅ $url - Status: $($response.StatusCode)"
-                            } catch {
-                                Write-Host "⚠️ $url - Non accessible (test optionnel)"
-                            }
+                        try {
+                            $response = Invoke-WebRequest -Uri "http://localhost:3000/health" -UseBasicParsing -TimeoutSec 5
+                            Write-Host "✅ Application accessible: $($response.StatusCode)"
+                        } catch {
+                            Write-Host "⚠️ Application non accessible (test optionnel)"
                         }
                     '''
                 }
@@ -214,14 +186,8 @@ pipeline {
             archiveArtifacts artifacts: 'logs/**/*.log', 
                            allowEmptyArchive: true
             
-            // Ajout d'un try/catch pour éviter l'erreur PM2
-            powershell '''
-                try {
-                    pm2 list
-                } catch {
-                    Write-Host "PM2 non disponible"
-                }
-            '''
+            // Version sans erreur pour PM2
+            bat 'echo "Pipeline terminé"'
         }
         
         success {
