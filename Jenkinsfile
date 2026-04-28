@@ -35,7 +35,7 @@ pipeline {
             steps {
                 echo '📋 Pipeline Jenkins - Équivalent .gitlab-ci.yml'
                 echo "Projet: ${env.JOB_NAME}"
-                echo "Date: " + new Date()
+                echo "Date: ${new Date()}"
             }
         }
 
@@ -48,6 +48,7 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
+                echo '📦 Installation des dépendances...'
                 bat 'npm install'
                 stash name: 'node-app', includes: '**/*'
             }
@@ -55,13 +56,19 @@ pipeline {
 
         stage('Test with Allow Failure') {
             steps {
+                echo '🧪 Exécution des tests...'
+
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    bat 'npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=junit.xml || npx mocha --exit tests/*'
+                    bat '''
+                        npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=junit.xml || npx mocha --exit tests/*
+                    '''
                 }
             }
+
             post {
                 always {
-                    junit testResults: 'junit.xml', allowEmptyResults: true
+                    junit testResults: 'junit.xml',
+                          allowEmptyResults: true
                 }
             }
         }
@@ -69,6 +76,7 @@ pipeline {
         stage('JUnit Reports') {
             steps {
                 bat 'if not exist reports mkdir reports'
+
                 publishHTML([
                     reportDir: 'reports',
                     reportFiles: 'index.html',
@@ -85,27 +93,20 @@ pipeline {
                 echo '🚀 Déploiement sur le serveur web...'
                 unstash 'node-app'
 
-                bat 'npm install --production'
+                bat 'npm install --omit=dev'
 
-                powershell '''
-                    Write-Host "=== DÉPLOIEMENT ==="
+                bat '''
+                    echo === DEPLOY ===
 
-                    try { pm2 stop demo } catch { }
-                    try { pm2 delete demo } catch { }
+                    pm2 stop demo || exit /b 0
+                    pm2 delete demo || exit /b 0
 
-                    Write-Host "Démarrage de l'application..."
                     pm2 start server.js --name demo
                     pm2 save
 
-                    Start-Sleep -Seconds 5
+                    timeout /t 5 > nul
 
-                    try {
-                        $response = Invoke-WebRequest -Uri "http://localhost:3000" -UseBasicParsing -TimeoutSec 5
-                        Write-Host "✅ Application démarrée sur le port 3000"
-                        Write-Host "✅ Status: $($response.StatusCode)"
-                    } catch {
-                        Write-Host "⚠️ Application non encore accessible"
-                    }
+                    curl http://localhost:3000
                 '''
             }
         }
@@ -113,14 +114,9 @@ pipeline {
         stage('Smoke Test - Allow Failure') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    powershell '''
-                        Start-Sleep -Seconds 3
-                        try {
-                            $response = Invoke-WebRequest -Uri "http://localhost:3000/health" -UseBasicParsing -TimeoutSec 5
-                            Write-Host "✅ Application accessible: $($response.StatusCode)"
-                        } catch {
-                            Write-Host "⚠️ Application non accessible"
-                        }
+                    bat '''
+                        timeout /t 3 > nul
+                        curl http://localhost:3000/health
                     '''
                 }
             }
@@ -136,7 +132,7 @@ pipeline {
             echo "Build #: ${env.BUILD_NUMBER}"
 
             archiveArtifacts artifacts: 'logs/**/*.log',
-                           allowEmptyArchive: true
+                             allowEmptyArchive: true
         }
 
         success {
