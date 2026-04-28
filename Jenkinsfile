@@ -1,12 +1,10 @@
 pipeline {
     agent any
     
-    // ===== TOOLS Node.js (APRÈS installation du plugin) =====
     tools {
         nodejs 'NodeJS-18'
     }
     
-    // ===== VARIABLES D'ENVIRONNEMENT =====
     environment {
         NODE_ENV = 'production'
         PORT = '3000'
@@ -15,7 +13,6 @@ pipeline {
     
     stages {
         
-        // ===== BEFORE SCRIPT =====
         stage('Before Script - Préparation') {
             steps {
                 echo '========================================='
@@ -31,20 +28,13 @@ pipeline {
                     echo === DOSSIERS CRÉÉS ===
                 '''
                 
-                bat '''
-                    echo === VERSIONS ===
-                    node --version
-                    npm --version
-                '''
-                
-                echo '📦 Installation des dépendances...'
-                bat 'npm install'
+                bat 'node --version'
+                bat 'npm --version'
                 
                 echo '✅ Before script terminé'
             }
         }
         
-        // ===== STAGE 1: INITIAL TEMPLATE CREATION =====
         stage('Initial Template Creation') {
             steps {
                 echo '📋 Pipeline Jenkins - Équivalent .gitlab-ci.yml'
@@ -53,32 +43,36 @@ pipeline {
             }
         }
         
-        // ===== STAGE 2: CHECKOUT GITHUB =====
         stage('Checkout from GitHub') {
             steps {
                 echo '📦 Récupération depuis GitHub...'
                 git url: 'https://github.com/ZainabElbouyed/Node-CI-Atelier3.git',
                     branch: 'master'
+                
+                // Afficher les fichiers pour vérification
+                bat 'dir'
+                bat 'type package.json'
             }
         }
         
-        // ===== STAGE 3: BUILD =====
-        stage('Build') {
+        stage('Install Dependencies') {
             steps {
-                echo '🔨 Build de l\'application...'
-                bat 'npm run build || echo "Aucun script build"'
+                echo '📦 Installation des dépendances...'
+                bat 'npm install'
                 stash name: 'node-app', includes: '**/*'
             }
             post {
-                success { echo '✅ Build réussi' }
-                failure { echo '❌ Build échoué' }
+                success { echo '✅ Dépendances installées' }
+                failure { 
+                    echo '❌ Échec installation'
+                    bat 'dir'
+                }
             }
         }
         
-        // ===== STAGE 4: TEST (avec allow_failure) =====
-        stage('Test with Variables') {
+        stage('Test with Allow Failure') {
             steps {
-                echo '🧪 Exécution des tests avec Mocha...'
+                echo '🧪 Exécution des tests...'
                 echo "NODE_ENV: ${env.NODE_ENV}"
                 echo "PORT: ${env.PORT}"
                 
@@ -90,7 +84,8 @@ pipeline {
                 always {
                     junit testResults: 'test-results.xml', 
                            allowEmptyResults: true
-                    echo '📊 Rapport de tests généré'
+                    junit testResults: 'junit.xml', 
+                           allowEmptyResults: true
                 }
                 unstable {
                     echo '⚠️ Tests optionnels échoués - pipeline continue (allow_failure)'
@@ -98,23 +93,6 @@ pipeline {
             }
         }
         
-        // ===== STAGE 5: PACKAGE + CACHE =====
-        stage('Package with Cache') {
-            steps {
-                echo '📦 Préparation pour déploiement...'
-                bat 'npm prune --production'
-                stash name: 'node-prod', includes: '**/*'
-            }
-            post {
-                success {
-                    archiveArtifacts artifacts: 'node_modules/**/*', 
-                                   allowEmptyArchive: true
-                    echo '✅ Package préparé'
-                }
-            }
-        }
-        
-        // ===== STAGE 6: RAPPORT JUNIT =====
         stage('JUnit Reports') {
             steps {
                 echo '📊 Génération du rapport de tests...'
@@ -125,7 +103,6 @@ pipeline {
                     junit testResults: 'junit.xml', 
                            allowEmptyResults: true
                     
-                    // Syntaxe CORRECTE de publishHTML
                     publishHTML([
                         reportDir: 'reports',
                         reportFiles: 'index.html',
@@ -138,11 +115,10 @@ pipeline {
             }
         }
         
-        // ===== STAGE 7: DEPLOY =====
         stage('Deploy') {
             steps {
                 echo '🚀 Déploiement sur le serveur web...'
-                unstash 'node-prod'
+                unstash 'node-app'
                 
                 powershell '''
                     Write-Host "=== DÉPLOIEMENT ==="
@@ -151,6 +127,10 @@ pipeline {
                     Write-Host "Arrêt de l'ancienne application..."
                     pm2 stop demo 2>$null
                     pm2 delete demo 2>$null
+                    
+                    # Installation de PM2 si nécessaire
+                    Write-Host "Vérification PM2..."
+                    try { npm install -g pm2 } catch { Write-Host "PM2 déjà installé" }
                     
                     # Installation des dépendances de production
                     Write-Host "Installation des dépendances..."
@@ -171,6 +151,7 @@ pipeline {
                         Write-Host "✅ Status: $($response.StatusCode)"
                     } catch {
                         Write-Host "⚠️ Application non encore accessible"
+                        Write-Host "Logs PM2:"
                         pm2 logs demo --lines 10 --nostream
                     }
                 '''
@@ -182,11 +163,11 @@ pipeline {
                 }
                 failure {
                     echo '❌ Échec du déploiement'
+                    echo 'Vérifiez que le serveur est accessible'
                 }
             }
         }
         
-        // ===== STAGE 8: ALLOW FAILURE - SMOKE TEST =====
         stage('Smoke Test - Allow Failure') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
@@ -204,6 +185,9 @@ pipeline {
                             try {
                                 $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
                                 Write-Host "✅ $url - Status: $($response.StatusCode)"
+                                if ($url -eq "http://localhost:3000/") {
+                                    Write-Host "   Réponse: $($response.Content)"
+                                }
                             } catch {
                                 Write-Host "⚠️ $url - Non accessible (test optionnel)"
                             }
@@ -213,7 +197,7 @@ pipeline {
             }
             post {
                 unstable {
-                    echo '⚠️ Smoke test échoué - pipeline continue'
+                    echo '⚠️ Smoke test échoué - pipeline continue (allow_failure)'
                 }
             }
         }
@@ -231,7 +215,14 @@ pipeline {
             archiveArtifacts artifacts: 'logs/**/*.log', 
                            allowEmptyArchive: true
             
-            powershell 'pm2 list'
+            // Ajout d'un try/catch pour éviter l'erreur PM2
+            powershell '''
+                try {
+                    pm2 list
+                } catch {
+                    Write-Host "PM2 non disponible"
+                }
+            '''
         }
         
         success {
@@ -241,11 +232,11 @@ pipeline {
             echo '╠══════════════════════════════════════════════════════════════╣'
             echo '║   ✅ Initial Template Creation                               ║'
             echo '║   ✅ Checkout depuis GitHub                                  ║'
-            echo '║   ✅ Build                                                   ║'
-            echo '║   ✅ Variables + Test (allow_failure)                        ║'
-            echo '║   ✅ Package + Cache                                         ║'
+            echo '║   ✅ Install Dependencies                                    ║'
+            echo '║   ✅ Test (allow_failure)                                    ║'
             echo '║   ✅ JUnit Reports                                           ║'
             echo '║   ✅ DEPLOY                                                  ║'
+            echo '║   ✅ Smoke Test                                              ║'
             echo '║   ✅ Before/After Scripts                                    ║'
             echo '║                                                              ║'
             echo '║   🌐 Application: http://localhost:3000                      ║'
