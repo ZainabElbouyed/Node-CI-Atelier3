@@ -96,17 +96,19 @@ pipeline {
                 bat '''
                     echo === DEPLOY ===
                     
-                    pm2 stop demo 2>nul
-                    pm2 delete demo 2>nul
+                    echo Arrêt du processus existant...
+                    for /f "tokens=2" %%i in (\'tasklist /fi "IMAGENAME eq node.exe" /fo csv ^| findstr "node.exe"\') do (
+                        taskkill /F /PID %%~i 2>nul
+                    )
                     
-                    pm2 start server.js --name demo
-                    pm2 save
+                    echo Démarrage de l'application...
+                    start /B node server.js > logs/app.log 2>&1
                     
                     echo Attente du démarrage...
                     ping -n 5 127.0.0.1 > nul
                     
-                    echo Vérification de l'application...
-                    node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('Status:', r.statusCode); process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(0))"
+                    echo Vérification...
+                    node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('Status:', r.statusCode); process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {console.log('Error'); process.exit(1)})"
                 '''
             }
         }
