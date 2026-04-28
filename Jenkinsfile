@@ -1,12 +1,12 @@
 pipeline {
     agent any
     
-    // ===== TOOLS Node.js =====
+    // ===== TOOLS Node.js (APRÈS installation du plugin) =====
     tools {
         nodejs 'NodeJS-18'
     }
     
-    // ===== VARIABBLES D'ENVIRONNEMENT (équivalent MAVEN_OPTS) =====
+    // ===== VARIABLES D'ENVIRONNEMENT =====
     environment {
         NODE_ENV = 'production'
         PORT = '3000'
@@ -62,7 +62,7 @@ pipeline {
             }
         }
         
-        // ===== STAGE 3: EXECUTION COMMANDE BUILD =====
+        // ===== STAGE 3: BUILD =====
         stage('Build') {
             steps {
                 echo '🔨 Build de l\'application...'
@@ -75,7 +75,7 @@ pipeline {
             }
         }
         
-        // ===== STAGE 4: AJOUT VARIABLES + TEST (avec allow_failure) =====
+        // ===== STAGE 4: TEST (avec allow_failure) =====
         stage('Test with Variables') {
             steps {
                 echo '🧪 Exécution des tests avec Mocha...'
@@ -88,11 +88,8 @@ pipeline {
             }
             post {
                 always {
-                    // Publication des rapports (Mocha génère des résultats)
                     junit testResults: 'test-results.xml', 
                            allowEmptyResults: true
-                    
-                    // Ajout de rapport (équivalent JUnit)
                     echo '📊 Rapport de tests généré'
                 }
                 unstable {
@@ -101,7 +98,7 @@ pipeline {
             }
         }
         
-        // ===== STAGE 5: PACKAGE + CACHE (équivalent du package Maven) =====
+        // ===== STAGE 5: PACKAGE + CACHE =====
         stage('Package with Cache') {
             steps {
                 echo '📦 Préparation pour déploiement...'
@@ -121,7 +118,6 @@ pipeline {
         stage('JUnit Reports') {
             steps {
                 echo '📊 Génération du rapport de tests...'
-                // Génère un rapport JUnit depuis Mocha
                 bat 'npm test -- --reporter mocha-junit-reporter --reporter-options mochaFile=junit.xml || echo "Rapport non généré"'
             }
             post {
@@ -129,17 +125,20 @@ pipeline {
                     junit testResults: 'junit.xml', 
                            allowEmptyResults: true
                     
+                    // Syntaxe CORRECTE de publishHTML
                     publishHTML([
                         reportDir: 'reports',
                         reportFiles: 'index.html',
                         reportName: 'Rapport de Tests Mocha',
-                        allowMissing: true
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: false
                     ])
                 }
             }
         }
         
-        // ===== STAGE 7: DEPLOY (NOUVEAU) =====
+        // ===== STAGE 7: DEPLOY =====
         stage('Deploy') {
             steps {
                 echo '🚀 Déploiement sur le serveur web...'
@@ -172,7 +171,6 @@ pipeline {
                         Write-Host "✅ Status: $($response.StatusCode)"
                     } catch {
                         Write-Host "⚠️ Application non encore accessible"
-                        # Afficher les logs PM2
                         pm2 logs demo --lines 10 --nostream
                     }
                 '''
@@ -184,7 +182,6 @@ pipeline {
                 }
                 failure {
                     echo '❌ Échec du déploiement'
-                    echo 'Vérifiez que PM2 est installé: npm install -g pm2'
                 }
             }
         }
@@ -253,7 +250,6 @@ pipeline {
             echo '║                                                              ║'
             echo '║   🌐 Application: http://localhost:3000                      ║'
             echo '║   📦 Projet: Node-CI-Atelier3                                ║'
-            echo '║   🧪 Tests: Mocha                                           ║'
             echo '╚══════════════════════════════════════════════════════════════╝'
         }
         
