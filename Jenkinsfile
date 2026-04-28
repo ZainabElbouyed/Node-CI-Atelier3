@@ -57,16 +57,17 @@ pipeline {
         stage('Test with Allow Failure') {
             steps {
                 echo '🧪 Exécution des tests...'
-
+                
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    bat 'npx mocha --exit tests/*'
+                    bat 'npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=test-results.xml'
                 }
             }
-
+            
             post {
                 always {
-                    junit testResults: 'junit.xml',
-                          allowEmptyResults: true
+                    // Publication des résultats JUnit
+                    junit testResults: 'test-results.xml', 
+                        allowEmptyResults: true
                 }
             }
         }
@@ -113,20 +114,15 @@ pipeline {
             }
         }
 
-        stage('Test with Allow Failure') {
+        stage('Smoke Test - Allow Failure') {
             steps {
-                echo '🧪 Exécution des tests...'
-                
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    bat 'npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=test-results.xml'
-                }
-            }
-            
-            post {
-                always {
-                    // Publication des résultats JUnit
-                    junit testResults: 'test-results.xml', 
-                        allowEmptyResults: true
+                    echo '🧪 Smoke test (allow_failure activé)...'
+                    bat '''
+                        echo === SMOKE TEST ===
+                        ping -n 3 127.0.0.1 > nul
+                        node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('✅ Status:', r.statusCode); process.exit(0)}).on('error', (e) => {console.log('⚠️ Erreur:', e.message); process.exit(0)})"
+                    '''
                 }
             }
         }
