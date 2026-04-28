@@ -61,19 +61,22 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat '''
                         npm install
-                        npx mocha tests/* --exit --reporter mocha-junit-reporter --reporter-options mochaFile=test-results.xml
+                        mkdir test-results 2>nul
+                        npx mocha tests/* --exit --reporter mocha-junit-reporter --reporter-options mochaFile=test-results/junit.xml
+                        echo "=== RAPPORT GÉNÉRÉ ==="
+                        dir test-results
+                        type test-results\\junit.xml
                     '''
                 }
             }
 
             post {
                 always {
-                    junit testResults: 'test-results.xml', 
+                    junit testResults: 'test-results/*.xml', 
                         allowEmptyResults: true
                 }
             }
         }
-
         stage('JUnit Reports') {
             steps {
                 bat 'if not exist reports mkdir reports'
