@@ -57,15 +57,17 @@ pipeline {
         stage('Test with Allow Failure') {
             steps {
                 echo '🧪 Exécution des tests...'
-                
+
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    bat 'npx mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=test-results.xml'
+                    bat '''
+                        npm install
+                        npx mocha tests/* --exit --reporter mocha-junit-reporter --reporter-options mochaFile=test-results.xml
+                    '''
                 }
             }
-            
+
             post {
                 always {
-                    // Publication des résultats JUnit
                     junit testResults: 'test-results.xml', 
                         allowEmptyResults: true
                 }
