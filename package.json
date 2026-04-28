@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "test": "mocha --exit tests/*",
+    "test:ci": "mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=test-results/junit.xml",
     "start": "node server.js"
   },
   "license": "MIT",

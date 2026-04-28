@@ -53,7 +53,7 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat '''
                         if not exist test-results mkdir test-results
-                        node_modules\.bin\mocha --exit tests/* --reporter mocha-junit-reporter --reporter-options mochaFile=test-results/junit.xml
+                        npm run test:ci
                     '''
                 }
             }
