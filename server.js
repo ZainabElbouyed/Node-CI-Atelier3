@@ -1,16 +1,34 @@
-const express = require("express");
+const express = require('express');
 const app = express();
-
 const port = process.env.PORT || 5000;
 
-app.get("/", (req, res) => {
-  return res.status(200).send({
-    message: "Hello World!",
-  });
+// Route racine
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'Hello World!',
+        status: 'running',
+        timestamp: new Date().toISOString()
+    });
 });
 
+// Route /hello
+app.get('/hello', (req, res) => {
+    res.json({ message: 'Hello depuis Jenkins Pipeline Node.js!' });
+});
+
+// Route /health
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'OK', 
+        uptime: process.uptime(),
+        service: 'Node-CI-Atelier3'
+    });
+});
+
+// Démarrer le serveur
 app.listen(port, () => {
-  console.log("Listening on " + port);
+    console.log(`🚀 Serveur démarré sur le port ${port}`);
+    console.log(`📊 Health check: http://localhost:${port}/health`);
 });
 
 module.exports = app;
