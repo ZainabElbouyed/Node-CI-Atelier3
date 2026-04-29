@@ -18,7 +18,14 @@ pipeline {
                 echo '========================================='
                 echo '🔧 BEFORE SCRIPT - INITIALISATION'
                 echo '========================================='
+
                 cleanWs()
+
+                bat '''
+                    if not exist logs mkdir logs
+                    if not exist reports mkdir reports
+                '''
+
                 bat 'node --version'
                 bat 'npm --version'
             }
@@ -50,24 +57,30 @@ pipeline {
         stage('Test with Allow Failure') {
             steps {
                 echo '🧪 Exécution des tests...'
+
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat '''
-                        if not exist test-results mkdir test-results
-                        npm run test:ci
+                        npm install
+                        mkdir test-results 2>nul
+                        npx mocha tests/* --exit --reporter mocha-junit-reporter --reporter-options mochaFile=test-results/junit.xml
+                        echo "=== RAPPORT GÉNÉRÉ ==="
+                        dir test-results
+                        type test-results\\junit.xml
                     '''
                 }
             }
+
             post {
                 always {
-                    junit testResults: 'test-results/*.xml',
-                          allowEmptyResults: true
+                    junit testResults: 'test-results/*.xml', 
+                        allowEmptyResults: true
                 }
             }
         }
-
         stage('JUnit Reports') {
             steps {
                 bat 'if not exist reports mkdir reports'
+
                 publishHTML([
                     reportDir: 'reports',
                     reportFiles: 'index.html',
@@ -83,25 +96,24 @@ pipeline {
             steps {
                 echo '🚀 Déploiement sur le serveur web...'
                 unstash 'node-app'
+
                 bat 'npm install --omit=dev'
 
                 bat '''
                     echo === DEPLOY ===
-
-                    if not exist logs mkdir logs
-
-                    echo Arret du processus existant...
-                    for /f "tokens=2" %%i in ('wmic process where "name='node.exe'" get processid /format:csv ^| findstr /v "ProcessId"') do (
-                        taskkill /F /PID %%i 2>nul
+                    
+                    echo Arrêt du processus existant...
+                    for /f "tokens=2" %%i in (\'tasklist /fi "IMAGENAME eq node.exe" /fo csv ^| findstr "node.exe"\') do (
+                        taskkill /F /PID %%~i 2>nul
                     )
-
-                    echo Demarrage de l application...
+                    
+                    echo Démarrage de l'application...
                     start /B node server.js > logs/app.log 2>&1
-
-                    echo Attente du demarrage...
-                    timeout /t 5 /nobreak > nul
-
-                    echo Verification...
+                    
+                    echo Attente du démarrage...
+                    ping -n 5 127.0.0.1 > nul
+                    
+                    echo Vérification...
                     node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('Status:', r.statusCode); process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {console.log('Error'); process.exit(1)})"
                 '''
             }
@@ -113,8 +125,8 @@ pipeline {
                     echo '🧪 Smoke test (allow_failure activé)...'
                     bat '''
                         echo === SMOKE TEST ===
-                        timeout /t 3 /nobreak > nul
-                        node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('OK Status:', r.statusCode); process.exit(0)}).on('error', (e) => {console.log('Erreur:', e.message); process.exit(0)})"
+                        ping -n 3 127.0.0.1 > nul
+                        node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('✅ Status:', r.statusCode); process.exit(0)}).on('error', (e) => {console.log('⚠️ Erreur:', e.message); process.exit(0)})"
                     '''
                 }
             }
@@ -128,23 +140,31 @@ pipeline {
             echo '========================================='
             echo "Statut: ${currentBuild.result}"
             echo "Build #: ${env.BUILD_NUMBER}"
+
             archiveArtifacts artifacts: 'logs/**/*.log',
                              allowEmptyArchive: true
         }
+
         success {
+            echo ''
             echo '╔════════════════════════════════════════════════════╗'
-            echo '║     PIPELINE NODE.JS REUSSI !                      ║'
-            echo '║   OK Before Script                                  ║'
-            echo '║   OK Checkout GitHub                                ║'
-            echo '║   OK Install Dependencies                           ║'
-            echo '║   OK Tests                                          ║'
-            echo '║   OK Deploy                                         ║'
-            echo '║   OK Smoke Test                                     ║'
-            echo '║   Application: http://localhost:5000                ║'
+            echo '║     🎉 PIPELINE NODE.JS RÉUSSI ! 🎉                ║'
+            echo '╠════════════════════════════════════════════════════╣'
+            echo '║   ✅ Before Script                                 ║'
+            echo '║   ✅ Initial Template Creation                     ║'
+            echo '║   ✅ Checkout GitHub                               ║'
+            echo '║   ✅ Install Dependencies                          ║'
+            echo '║   ✅ Test (allow_failure)                          ║'
+            echo '║   ✅ Deploy                                        ║'
+            echo '║   ✅ Smoke Test                                    ║'
+            echo '║   ✅ After Script                                  ║'
+            echo '║                                                      ║'
+            echo '║   🌐 Application: http://localhost:5000            ║'
             echo '╚════════════════════════════════════════════════════╝'
         }
+
         failure {
-            echo 'PIPELINE ECHOUE'
+            echo '💥 PIPELINE ÉCHOUÉ'
         }
     }
 }
