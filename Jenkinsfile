@@ -60,28 +60,18 @@ pipeline {
 
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat '''
-                        echo "=== VERIFICATION DU WORKSPACE ==="
-                        dir
-                        
-                        echo "=== VERIFICATION DES DEPENDANCES ==="
-                        dir node_modules 2>nul
-                        
-                        echo "=== INSTALLATION DES DEPENDANCES ==="
-                        npm install
-                        
-                        echo "=== EXECUTION DES TESTS ==="
                         if not exist test-results mkdir test-results
-                        npx mocha tests/* --exit --reporter mocha-junit-reporter --reporter-options mochaFile=test-results/junit.xml
-                        
-                        echo "=== CONTENU DU RAPPORT ==="
-                        type test-results\\junit.xml
+
+                        npx mocha "tests/**/*.js" --exit ^
+                        --reporter mocha-junit-reporter ^
+                        --reporter-options mochaFile=test-results/junit.xml
                     '''
                 }
             }
 
             post {
                 always {
-                    junit testResults: 'test-results/*.xml', 
+                    junit testResults: 'test-results/*.xml',
                         allowEmptyResults: true
                 }
             }
@@ -116,11 +106,13 @@ pipeline {
                         taskkill /F /PID %%~i 2>nul
                     )
                     
+                    if not exist logs mkdir logs
+                    
                     echo Démarrage de l'application...
                     start /B node server.js > logs/app.log 2>&1
                     
                     echo Attente du démarrage...
-                    ping -n 5 127.0.0.1 > nul
+                    timeout /t 5 > nul
                     
                     echo Vérification...
                     node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('Status:', r.statusCode); process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {console.log('Error'); process.exit(1)})"
@@ -134,7 +126,7 @@ pipeline {
                     echo '🧪 Smoke test (allow_failure activé)...'
                     bat '''
                         echo === SMOKE TEST ===
-                        ping -n 3 127.0.0.1 > nul
+                        timeout /t 3 > nul
                         node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('✅ Status:', r.statusCode); process.exit(0)}).on('error', (e) => {console.log('⚠️ Erreur:', e.message); process.exit(0)})"
                     '''
                 }

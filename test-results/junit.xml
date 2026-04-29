@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Mocha Tests" time="0.074" tests="3" failures="0">
+  <testsuite name="Root Suite" timestamp="2026-04-28T23:08:02" tests="0" time="0.000" failures="0">
+  </testsuite>
+  <testsuite name="Tests de l&apos;application Node.js" timestamp="2026-04-28T23:08:02" tests="3" file="C:\jenkins-projects\Node-CI-Atelier3\tests\server.test.js" time="0.071" failures="0">
+    <testcase name="Tests de l&apos;application Node.js GET / doit retourner un message" time="0.050" classname="GET / doit retourner un message">
+    </testcase>
+    <testcase name="Tests de l&apos;application Node.js GET /hello doit retourner un message" time="0.006" classname="GET /hello doit retourner un message">
+    </testcase>
+    <testcase name="Tests de l&apos;application Node.js GET /health doit retourner status OK" time="0.005" classname="GET /health doit retourner status OK">
+    </testcase>
+  </testsuite>
+</testsuites>
