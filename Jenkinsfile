@@ -100,7 +100,7 @@ pipeline {
                     
                     echo Arrêt du processus existant...
                     for /f "tokens=2" %%i in (\'tasklist /fi "IMAGENAME eq node.exe" /fo csv ^| findstr "node.exe"\') do (
-                        C:\Windows\System32\taskkill.exe /F /PID %%~i 2>nul
+                        C:\\Windows\\System32\\taskkill.exe /F /PID %%~i 2>nul
                     )
                     
                     if not exist logs mkdir logs
