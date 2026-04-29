@@ -60,17 +60,9 @@ pipeline {
 
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat '''
-                        echo "=== INSTALLATION DES DEPENDANCES ==="
-                        npm install
-                        
-                        echo "=== CREATION DU DOSSIER TEST-RESULTS ==="
                         if not exist test-results mkdir test-results
-                        
-                        echo "=== EXECUTION DES TESTS AVEC RAPPORT JUNIT ==="
-                        npx mocha tests/* --exit --reporter mocha-junit-reporter --reporter-options mochaFile=test-results/junit.xml
-                        
+                        npm test
                         echo "=== RAPPORT GENERÉ ==="
-                        dir test-results
                         type test-results\\junit.xml
                     '''
                 }
