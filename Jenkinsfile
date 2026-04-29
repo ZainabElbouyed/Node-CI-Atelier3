@@ -61,10 +61,7 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat '''
                         if not exist test-results mkdir test-results
-
-                        npx mocha "tests/**/*.js" --exit ^
-                        --reporter mocha-junit-reporter ^
-                        --reporter-options mochaFile=test-results/junit.xml
+                        npm test
                     '''
                 }
             }
@@ -107,7 +104,7 @@ pipeline {
                     )
                     
                     if not exist logs mkdir logs
-                    
+
                     echo Démarrage de l'application...
                     start /B node server.js > logs/app.log 2>&1
                     
