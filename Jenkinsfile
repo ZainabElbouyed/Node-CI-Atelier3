@@ -49,7 +49,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo '📦 Installation des dépendances...'
-                bat 'npm install'
+                bat 'npm install --include=dev'
                 stash name: 'node-app', includes: '**/*'
             }
         }
@@ -100,7 +100,7 @@ pipeline {
                     
                     echo Arrêt du processus existant...
                     for /f "tokens=2" %%i in (\'tasklist /fi "IMAGENAME eq node.exe" /fo csv ^| findstr "node.exe"\') do (
-                        taskkill /F /PID %%~i 2>nul
+                        C:\Windows\System32\taskkill.exe /F /PID %%~i 2>nul
                     )
                     
                     if not exist logs mkdir logs
@@ -109,7 +109,7 @@ pipeline {
                     start /B node server.js > logs/app.log 2>&1
                     
                     echo Attente du démarrage...
-                    timeout /t 5 > nul
+                    C:\\Windows\\System32\\timeout.exe /t 5 > nul
                     
                     echo Vérification...
                     node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('Status:', r.statusCode); process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {console.log('Error'); process.exit(1)})"
@@ -123,7 +123,7 @@ pipeline {
                     echo '🧪 Smoke test (allow_failure activé)...'
                     bat '''
                         echo === SMOKE TEST ===
-                        timeout /t 3 > nul
+                        C:\\Windows\\System32\\timeout.exe /t 3 > nul
                         node -e "require('http').get('http://localhost:5000/health', (r) => {console.log('✅ Status:', r.statusCode); process.exit(0)}).on('error', (e) => {console.log('⚠️ Erreur:', e.message); process.exit(0)})"
                     '''
                 }
